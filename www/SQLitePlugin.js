@@ -406,6 +406,11 @@
           path: databaseName
         }
       ]);
+    },
+    importPrepopulatedDatabase: function(options, success, error) {
+    	return cordova.exec(success, error, "SQLitePlugin", "importPrepopulatedDatabase", [
+    		options
+        ]);
     }
   };
 
@@ -414,7 +419,8 @@
       isSQLitePlugin: true
     },
     openDatabase: SQLiteFactory.opendb,
-    deleteDatabase: SQLiteFactory.deleteDb
+    deleteDatabase: SQLiteFactory.deleteDb,
+    importPrepopulatedDatabase: SQLiteFactory.importPrepopulatedDatabase
   };
 
 }).call(this);

@@ -130,6 +130,13 @@ public class SQLitePlugin extends CordovaPlugin {
                 }
                 break;
 
+			
+			case importPrepopulatedDatabase:
+				o = args.getJSONObject(0);
+				this.importPrepopulatedDatabase(o.getString("file"), o.getLong("importIfExists") == 1);
+				break;
+
+
             case executeSqlBatch:
             case backgroundExecuteSqlBatch:
                 String[] queries = null;
@@ -242,6 +249,13 @@ public class SQLitePlugin extends CordovaPlugin {
             dbmap.remove(dbName);
         }
     }
+
+
+    private boolean importPrepopulatedDatabase(String fileName, boolean importIfExists)
+    {
+    	Log.v(SQLitePlugin.class.getSimpleName(), "importPrepopulatedDatabase " + fileName + " " + importIfExists);
+    }
+
 
     /**
      * Delete a database.
@@ -762,6 +776,7 @@ public class SQLitePlugin extends CordovaPlugin {
         open,
         close,
         delete,
+        importPrepopulatedDatabase, 
         executeSqlBatch,
         backgroundExecuteSqlBatch,
     }
