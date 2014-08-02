@@ -319,8 +319,6 @@ static void sqlite_regexp(sqlite3_context* context, int argc, sqlite3_value** va
 	NSString* databaseInFileSystem = [self getDBPath:fileName];
 	NSFileManager* fileManager = [NSFileManager defaultManager];
 	
-	NSLog(@"databaseInFileSystem: %@", databaseInFileSystem);
-	
 	if ( !importIfExists && [fileManager fileExistsAtPath:databaseInFileSystem])
 	{
 		CDVPluginResult* pluginResult = [CDVPluginResult
@@ -337,6 +335,7 @@ static void sqlite_regexp(sqlite3_context* context, int argc, sqlite3_value** va
 	NSString* databaseInBundle = [[[NSBundle mainBundle] resourcePath]
 		stringByAppendingPathComponent:[NSString stringWithFormat:@"www/db/%@",fileName]];
 		
+	[fileManager removeItemAtPath:databaseInFileSystem error:nil];
 	[fileManager copyItemAtPath:databaseInBundle toPath:databaseInFileSystem error:nil];
 
 	CDVPluginResult* pluginResult = [CDVPluginResult
