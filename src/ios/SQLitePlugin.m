@@ -335,14 +335,17 @@ static void sqlite_regexp(sqlite3_context* context, int argc, sqlite3_value** va
 	NSString* databaseInBundle = [[[NSBundle mainBundle] resourcePath]
 		stringByAppendingPathComponent:[NSString stringWithFormat:@"www/db/%@",fileName]];
 		
-	[fileManager removeItemAtPath:databaseInFileSystem error:nil];
-	[fileManager copyItemAtPath:databaseInBundle toPath:databaseInFileSystem error:nil];
+	dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0);
+    dispatch_async(queue, ^ {
+        [fileManager removeItemAtPath:databaseInFileSystem error:nil];
+        [fileManager copyItemAtPath:databaseInBundle toPath:databaseInFileSystem error:nil];
 
-	CDVPluginResult* pluginResult = [CDVPluginResult
-		resultWithStatus:CDVCommandStatus_OK
-		messageAsString:@"Prepopulated database imported."];
-			
-	[self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+        CDVPluginResult* pluginResult = [CDVPluginResult
+                                         resultWithStatus:CDVCommandStatus_OK
+                                         messageAsString:@"Prepopulated database imported."];
+        
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    });
 }
 
 
