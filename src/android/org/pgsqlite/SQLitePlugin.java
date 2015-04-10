@@ -8,6 +8,7 @@ package org.pgsqlite;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Context;
 import android.database.Cursor;
 import android.database.CursorWindow;
 import android.database.sqlite.SQLiteCursor;
@@ -15,6 +16,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SQLiteStatement;
 
+import android.os.Environment;
 import android.util.Base64;
 import android.util.Log;
 
@@ -24,6 +26,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.IllegalArgumentException;
 import java.lang.Number;
+import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -36,6 +39,9 @@ import org.apache.cordova.CordovaPlugin;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import com.android.vending.expansion.zipfile.APKExpansionSupport;
+import com.android.vending.expansion.zipfile.ZipResourceFile;
 
 public class SQLitePlugin extends CordovaPlugin {
 
@@ -134,11 +140,11 @@ public class SQLitePlugin extends CordovaPlugin {
                 }
                 break;
 
-			
-			case importPrepopulatedDatabase:
-				o = args.getJSONObject(0);
-				this.importPrepopulatedDatabase(o.getString("file"), o.getString("importIfExists").equals("true"), cbc);
-				break;
+
+            case importPrepopulatedDatabase:
+                o = args.getJSONObject(0);
+                this.importPrepopulatedDatabase(o.getString("file"), o.getInt("mainVersion"), o.getInt("patchVersion"), o.getString("importIfExists").equals("true"), cbc);
+                break;
 
 
             case executeSqlBatch:
@@ -190,7 +196,7 @@ public class SQLitePlugin extends CordovaPlugin {
     public void onDestroy() {
         while (!dbmap.isEmpty()) {
             String dbname = dbmap.keySet().iterator().next();
-	    // TODO should stop the db thread(s) instead (!!)
+            // TODO should stop the db thread(s) instead (!!)
             this.closeDatabaseNow(dbname);
             dbmap.remove(dbname);
         }
@@ -207,7 +213,7 @@ public class SQLitePlugin extends CordovaPlugin {
      */
     private void openDatabase(String dbname) {
         if (this.getDatabase(dbname) != null) {
-	    // TODO should wait for the db thread(s) to stop (!!)
+            // TODO should wait for the db thread(s) to stop (!!)
             this.closeDatabase(dbname);
         }
 
@@ -255,82 +261,132 @@ public class SQLitePlugin extends CordovaPlugin {
     }
 
 
-    private boolean importPrepopulatedDatabase(String inFileName, boolean importIfExists, final CallbackContext cbc)
+    private boolean importPrepopulatedDatabase(String inFileName, int mainVersion, int patchVersion, boolean importIfExists, final CallbackContext cbc)
     {
-    	// Log.v(SQLitePlugin.class.getSimpleName(), "importPrepopulatedDatabase " + inFileName + " " + importIfExists);
+        // Log.v(SQLitePlugin.class.getSimpleName(), "importPrepopulatedDatabase " + inFileName + " " + importIfExists);
 
-    	if ( inFileName == null ) {
-    		String message = "importPrepopulatedDatabase was not provided a filename.";
+        if ( inFileName == null ) {
+            String message = "importPrepopulatedDatabase was not provided a filename.";
             Log.e(SQLitePlugin.class.getSimpleName(), message);
             cbc.error(message);
             return false;
-    	}
-    	
-    	final String fileName = inFileName.trim();
-    	
-    	if ( fileName.length() == 0 ) {
-    		String message = "importPrepopulatedDatabase was provided with an empty filename.";
+        }
+
+        final String fileName = inFileName.trim();
+
+        if ( fileName.length() == 0 ) {
+            String message = "importPrepopulatedDatabase was provided with an empty filename.";
             Log.e(SQLitePlugin.class.getSimpleName(), message);
             cbc.error(message);
             return false;
-    	}
-    	
+        }
+
         final File dbfile = this.cordova.getActivity().getDatabasePath(fileName);
-    	boolean dbExistsInTheFileSystem = dbfile.exists();
-        
-        if ( !importIfExists && dbExistsInTheFileSystem ) 
-    	{
+        boolean dbExistsInTheFileSystem = dbfile.exists();
+
+        if ( !importIfExists && dbExistsInTheFileSystem )
+        {
             Log.i(SQLitePlugin.class.getSimpleName(), "importPrepopulatedDatabase - not overwriting existing database.");
             cbc.success();
             return true;
-    	}
-
-        if ( !dbExistsInTheFileSystem ) {
-        	dbfile.getParentFile().mkdirs();
         }
 
-    	// Copy the database from the bundle to the file system.
-    	final Activity activity = this.cordova.getActivity();
+        if ( !dbExistsInTheFileSystem ) {
+            dbfile.getParentFile().mkdirs();
+        }
 
-    	// Having this run on a background thread will cause the
-    	// function to return before the database has a chance to be
-    	// copied over from the bundle. The subsequent code will
-    	// then attempt to open a database that's not yet ready.
-    	// Since this is an operation that takes place on startup,
-    	// best to allow the webcore thread to block a bit, while
-    	// copying the database from the bundle, instead of risking
-    	// database corruption.
-    	this.cordova.getThreadPool().execute(new Runnable() {
-			@Override
-			public void run () {
-				try
-				{
-					InputStream inputStream = activity.getAssets().open("www/db/" + fileName);
-					OutputStream outputStream = new FileOutputStream(dbfile);
-					
-					byte[] buffer = new byte[1024];
-					int length;
-					while ( (length = inputStream.read(buffer)) > 0 )
-					{
-						outputStream.write(buffer, 0, length);
-					}
-					
-					outputStream.flush();
-					outputStream.close();
-					inputStream.close();
-					
-					cbc.success();
-				}
-		        catch ( Exception e ) 
-		        {
-					Log.e(SQLitePlugin.class.getSimpleName(), "importPrepopulatedDatabase - can't open " + fileName, e);
-					cbc.error(e.getMessage());
-				}
-			}
-		});
+        // Copy the database from the bundle to the file system.
+        final Activity activity = this.cordova.getActivity();
 
-		// Log.v(SQLitePlugin.class.getSimpleName(), "importPrepopulatedDatabase - returning");
+        // Having this run on a background thread will cause the
+        // function to return before the database has a chance to be
+        // copied over from the bundle. The subsequent code will
+        // then attempt to open a database that's not yet ready.
+        // Since this is an operation that takes place on startup,
+        // best to allow the webcore thread to block a bit, while
+        // copying the database from the bundle, instead of risking
+        // database corruption.
+        this.cordova.getThreadPool().execute(new Runnable() {
+            @Override
+            public void run () {
+                try
+                {
+                    Context context= cordova.getActivity().getApplicationContext();
+
+                    // Get a ZipResourceFile representing a merger of both the main and patch files
+                    ZipResourceFile expansionFile =
+                            APKExpansionSupport.getAPKExpansionZipFile(context, 1, 0);
+
+                    String[] files = SQLitePlugin.getAPKExpansionFiles(context, 1, 0);
+
+                    // Get an input stream for a known file inside the expansion file ZIPs
+                    InputStream inputStream = expansionFile.getInputStream("main_expansion/db/" + fileName);
+
+                    //InputStream inputStream = activity.getAssets().open("www/db/" + fileName);
+
+                    OutputStream outputStream = new FileOutputStream(dbfile);
+
+                    byte[] buffer = new byte[1024];
+                    int length;
+                    while ( (length = inputStream.read(buffer)) > 0 )
+                    {
+                        outputStream.write(buffer, 0, length);
+                    }
+
+                    outputStream.flush();
+                    outputStream.close();
+                    inputStream.close();
+
+                    cbc.success();
+                }
+                catch ( Exception e )
+                {
+                    Log.e(SQLitePlugin.class.getSimpleName(), "importPrepopulatedDatabase - can't open " + fileName, e);
+                    cbc.error(e.getMessage());
+                }
+            }
+        });
+
+        // Log.v(SQLitePlugin.class.getSimpleName(), "importPrepopulatedDatabase - returning");
         return true;
+    }
+
+    // The shared path to all app expansion files
+    private final static String EXP_PATH = "/Android/obb/";
+
+    public static String[] getAPKExpansionFiles(Context ctx, int mainVersion,
+                                                int patchVersion) {
+        String packageName = ctx.getPackageName();
+        Vector<String> ret = new Vector<String>();
+        if (Environment.getExternalStorageState()
+                .equals(Environment.MEDIA_MOUNTED)) {
+            // Build the full path to the app's expansion files
+            File root = Environment.getExternalStorageDirectory();
+            File expPath = new File(root.toString() + EXP_PATH + packageName);
+
+            // Check that expansion file path exists
+            if (expPath.exists()) {
+                if ( mainVersion > 0 ) {
+                    String strMainPath = expPath + File.separator + "main." +
+                            mainVersion + "." + packageName + ".obb";
+                    File main = new File(strMainPath);
+                    if ( main.exists()) {
+                        ret.add(strMainPath);
+                    }
+                }
+                if ( patchVersion > 0 ) {
+                    String strPatchPath = expPath + File.separator + "patch." +
+                            mainVersion + "." + packageName + ".obb";
+                    File main = new File(strPatchPath);
+                    if ( main.isFile() ) {
+                        ret.add(strPatchPath);
+                    }
+                }
+            }
+        }
+        String[] retArray = new String[ret.size()];
+        ret.toArray(retArray);
+        return retArray;
     }
 
 
@@ -576,7 +632,7 @@ public class SQLitePlugin extends CordovaPlugin {
     }
 
     private int countRowsAffectedCompat(QueryType queryType, String query, JSONArray[] jsonparams,
-                                         SQLiteDatabase mydb, int i) throws JSONException {
+                                        SQLiteDatabase mydb, int i) throws JSONException {
         // quick and dirty way to calculate the rowsAffected in pre-Honeycomb.  just do a SELECT
         // beforehand using the same WHERE clause. might not be perfect, but it's better than nothing
         Matcher whereMatcher = WHERE_CLAUSE.matcher(query);
@@ -853,7 +909,7 @@ public class SQLitePlugin extends CordovaPlugin {
         open,
         close,
         delete,
-        importPrepopulatedDatabase, 
+        importPrepopulatedDatabase,
         executeSqlBatch,
         backgroundExecuteSqlBatch,
     }
