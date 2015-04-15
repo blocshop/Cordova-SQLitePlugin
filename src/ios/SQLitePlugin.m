@@ -339,6 +339,13 @@ static void sqlite_regexp(sqlite3_context* context, int argc, sqlite3_value** va
     dispatch_async(queue, ^ {
         [fileManager removeItemAtPath:databaseInFileSystem error:nil];
         [fileManager copyItemAtPath:databaseInBundle toPath:databaseInFileSystem error:nil];
+        
+        NSURL *databaseFilePath = [NSURL fileURLWithPath:databaseInFileSystem];
+        NSError *error = nil;
+        [databaseFilePath setResourceValue:[NSNumber numberWithBool:YES] forKey:NSURLIsExcludedFromBackupKey error:&error];
+        if (error != nil) {
+            NSLog(@"%@", [error localizedDescription]);
+        }
 
         CDVPluginResult* pluginResult = [CDVPluginResult
                                          resultWithStatus:CDVCommandStatus_OK
